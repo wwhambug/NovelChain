@@ -173,10 +173,12 @@ function eligiblePlayers() {
 }
 function currentTurn() {
   if (!state.room || state.room.status === "completed") return null;
+  if (state.players.length < 2) return null;
   const eligible = eligiblePlayers();
   if (!eligible.length) return null;
   const last = state.lines.at(-1);
   if (!last) return eligible[0];
+  if (eligible.length === 1 && eligible[0].id === last.player_id) return null;
   const start = Math.max(0, state.players.findIndex((player) => player.id === last.player_id) + 1);
   for (let i = 0; i < state.players.length; i += 1) {
     const player = state.players[(start + i) % state.players.length];
@@ -193,6 +195,7 @@ function notifyTurn(player) {
 }
 async function addLine(event) {
   event.preventDefault();
+  if (state.players.length < 2) return toast("2명 이상 들어와야 시작할 수 있습니다.");
   const turn = currentTurn();
   const ownCount = state.lines.filter((line) => line.player_id === state.player.id).length;
   if (state.room.status === "completed") return toast("This story is complete.");
@@ -257,7 +260,15 @@ function render() {
   els.activeRoomTitle.textContent = state.room.title;
   els.storyHeading.textContent = state.room.status === "completed" ? "완성된 소설" : "함께 쓰는 중";
   els.ruleText.textContent = `사람당 ${state.room.max_lines_per_player}줄 · 수정 ${state.room.allow_edits ? "가능" : "불가"}`;
-  els.lineHint.textContent = state.room.status === "completed" ? "완성된 소설입니다." : canWrite ? `당신의 차례 · 남은 줄 ${remaining}` : turn ? `${turn.name}님의 차례 · 내 남은 줄 ${remaining}` : "모든 줄을 사용했습니다.";
+  els.lineHint.textContent = state.room.status === "completed"
+    ? "완성된 소설입니다."
+    : state.players.length < 2
+      ? "2명 이상 들어오면 첫 문장을 쓸 수 있습니다."
+      : canWrite
+        ? `당신의 차례 · 남은 줄 ${remaining}`
+        : turn
+          ? `${turn.name}님의 차례 · 내 남은 줄 ${remaining}`
+          : "다른 사람이 이어 쓸 차례입니다.";
   els.hostSettings.classList.toggle("hidden", !isHost());
   els.hostMaxLines.value = state.room.max_lines_per_player;
   els.hostAllowEdits.checked = state.room.allow_edits;
