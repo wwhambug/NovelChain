@@ -16,8 +16,12 @@ const els = {
   leaveButton: $("#leaveButton"), historyButton: $("#historyButton"), historyDialog: $("#historyDialog"),
   closeHistory: $("#closeHistory"), historyList: $("#historyList"), downloadTxt: $("#downloadTxt"), downloadPdf: $("#downloadPdf"),
   chatMessages: $("#chatMessages"), chatForm: $("#chatForm"), chatInput: $("#chatInput"), toast: $("#toast"),
+  rejoinCard: $("#rejoinCard"), rejoinTitle: $("#rejoinTitle"), rejoinMeta: $("#rejoinMeta"), rejoinButton: $("#rejoinButton"),
+  readerView: $("#readerView"), closeReader: $("#closeReader"), readerTxt: $("#readerTxt"), readerPdf: $("#readerPdf"),
+  readerMeta: $("#readerMeta"), readerTitle: $("#readerTitle"), readerLines: $("#readerLines"),
 };
-const state = { session: null, user: null, room: null, player: null, players: [], lines: [], chatMessages: [], channel: null, lastTurnKey: "" };
+const state = { session: null, user: null, room: null, player: null, players: [], lines: [], chatMessages: [], channel: null, lastTurnKey: "", readerStory: null };
+const rejoinWindowMs = 30 * 60 * 1000;
 const clientId = localStorage.getItem("novelchain.clientId") || crypto.randomUUID();
 localStorage.setItem("novelchain.clientId", clientId);
 
@@ -36,6 +40,10 @@ els.historyButton.addEventListener("click", openHistory);
 els.closeHistory.addEventListener("click", () => els.historyDialog.close());
 els.downloadTxt.addEventListener("click", downloadTxt);
 els.downloadPdf.addEventListener("click", downloadPdf);
+els.rejoinButton.addEventListener("click", rejoinRecentRoom);
+els.closeReader.addEventListener("click", closeReader);
+els.readerTxt.addEventListener("click", () => downloadStory(state.readerStory, "txt"));
+els.readerPdf.addEventListener("click", () => downloadStory(state.readerStory, "pdf"));
 initAuth();
 
 function toast(message) {
@@ -71,8 +79,10 @@ function renderAuth() {
   const signedIn = Boolean(state.user);
   els.authView.classList.toggle("hidden", signedIn);
   els.accountBar.classList.toggle("hidden", !signedIn);
-  els.lobbyView.classList.toggle("hidden", !signedIn || Boolean(state.room));
+  const inRoom = Boolean(state.room);
+  els.lobbyView.classList.toggle("hidden", !signedIn || inRoom);
   els.accountEmail.textContent = state.user?.email || "";
+  renderRejoin();
 }
 async function login(event) {
   event.preventDefault();
@@ -124,7 +134,10 @@ async function enterRoom(room, playerName) {
   }
   state.room = room;
   state.player = player;
+  saveRecentRoom(room, player.name);
   els.lobbyView.classList.add("hidden");
+  els.rejoinCard.classList.add("hidden");
+  els.readerView.classList.add("hidden");
   els.gameView.classList.remove("hidden");
   await loadRoom();
   subscribeRoom();
@@ -190,8 +203,19 @@ async function addLine(event) {
   for (let i = 0; i < 3; i += 1) {
     if (i) await loadRoom();
     const position = state.lines.length ? Math.max(...state.lines.map((line) => line.position)) + 1 : 1;
-    const res = await supabase.from("lines").insert({ room_id: state.room.id, player_id: state.player.id, user_id: state.user.id, player_name: state.player.name, content, position });
-    if (!res.error) { els.lineInput.value = ""; return; }
+    const res = await supabase
+      .from("lines")
+      .insert({ room_id: state.room.id, player_id: state.player.id, user_id: state.user.id, player_name: state.player.name, content, position })
+      .select()
+      .single();
+    if (!res.error) {
+      els.lineInput.value = "";
+      state.lines = [...state.lines.filter((line) => line.id !== res.data.id), res.data].sort((a, b) => a.position - b.position);
+      render();
+      await loadRoom();
+      render();
+      return;
+    }
     if (!res.error.message.includes("duplicate key")) return toast(res.error.message);
   }
   toast("Try again.");
@@ -295,10 +319,93 @@ function renderChat() {
   els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
 }
 
+function recentRoomKey() { return `novelchain.recent.${state.user?.id || "guest"}`; }
+function getRecentRoom() {
+  if (!state.user) return null;
+  try {
+    const recent = JSON.parse(localStorage.getItem(recentRoomKey()) || "null");
+    if (!recent || Date.now() - recent.savedAt > rejoinWindowMs) {
+      localStorage.removeItem(recentRoomKey());
+      return null;
+    }
+    return recent;
+  } catch {
+    return null;
+  }
+}
+function saveRecentRoom(room, playerName) {
+  if (!state.user || !room?.id) return;
+  localStorage.setItem(recentRoomKey(), JSON.stringify({
+    roomId: room.id,
+    code: room.code,
+    title: room.title,
+    playerName,
+    savedAt: Date.now(),
+  }));
+}
+function renderRejoin() {
+  const recent = getRecentRoom();
+  const show = Boolean(state.user && !state.room && recent);
+  els.rejoinCard.classList.toggle("hidden", !show);
+  if (!show) return;
+  const minutesLeft = Math.max(1, Math.ceil((rejoinWindowMs - (Date.now() - recent.savedAt)) / 60000));
+  els.rejoinTitle.textContent = recent.title || "최근 방";
+  els.rejoinMeta.textContent = `${recent.code} · ${minutesLeft}분 안에 다시 접속 가능`;
+}
+async function rejoinRecentRoom() {
+  if (!needSupabase() || !needUser()) return;
+  const recent = getRecentRoom();
+  if (!recent) return renderAuth();
+  const { data, error } = await supabase.from("rooms").select("*").eq("id", recent.roomId).maybeSingle();
+  if (error || !data) {
+    localStorage.removeItem(recentRoomKey());
+    renderAuth();
+    return toast("다시 접속할 방을 찾지 못했습니다.");
+  }
+  await enterRoom(data, recent.playerName || "작가");
+}
+async function deleteHistoryRoom(roomId) {
+  const rpc = await supabase.rpc("delete_completed_room", { target_room_id: roomId });
+  if (!rpc.error) return rpc;
+  return supabase.from("rooms").delete().eq("id", roomId).eq("owner_id", state.user.id).eq("status", "completed");
+}
+function openReader(story) {
+  state.readerStory = story;
+  if (els.historyDialog.open) els.historyDialog.close();
+  if (state.channel) supabase.removeChannel(state.channel);
+  state.channel = null;
+  els.authView.classList.add("hidden");
+  els.lobbyView.classList.add("hidden");
+  els.gameView.classList.add("hidden");
+  els.rejoinCard.classList.add("hidden");
+  els.readerView.classList.remove("hidden");
+  els.readerMeta.textContent = `${story.code} · ${formatDate(story.completed_at || story.created_at)}`;
+  els.readerTitle.textContent = story.title;
+  els.readerLines.replaceChildren(...story.lines.map((line) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span>${escapeHtml(line.player_name)}</span><p>${escapeHtml(line.content)}</p>`;
+    return li;
+  }));
+}
+function closeReader() {
+  state.readerStory = null;
+  els.readerView.classList.add("hidden");
+  if (state.room) {
+    els.gameView.classList.remove("hidden");
+    subscribeRoom();
+    reload();
+  } else {
+    renderAuth();
+  }
+}
+
 async function openHistory() {
   if (!needSupabase() || !needUser()) return;
   els.historyList.textContent = "불러오는 중...";
-  els.historyDialog.showModal();
+  if (!els.historyDialog.open) els.historyDialog.showModal();
+  await loadHistory();
+}
+async function loadHistory() {
   const { data, error } = await supabase.from("rooms").select("id, code, title, owner_id, completed_at, created_at, lines(content, position, player_name)").eq("status", "completed").order("completed_at", { ascending: false }).limit(20);
   if (error) { els.historyList.textContent = error.message; return; }
   renderHistory(data || []);
@@ -306,46 +413,55 @@ async function openHistory() {
 function renderHistory(rooms) {
   if (!rooms.length) { els.historyList.textContent = "완성된 소설이 아직 없습니다."; return; }
   els.historyList.replaceChildren(...rooms.map((room) => {
-    const details = document.createElement("details");
+    const item = document.createElement("article");
     const lines = [...(room.lines || [])].sort((a, b) => a.position - b.position);
-    details.className = "history-item";
-    details.innerHTML = `<summary><strong>${escapeHtml(room.title)}</strong></summary><div class="history-meta"><span>${escapeHtml(room.code)} · ${formatDate(room.completed_at || room.created_at)}</span>${room.owner_id === state.user?.id ? '<button class="danger compact history-delete" type="button">삭제</button>' : ""}</div><ol class="history-story">${lines.map((line) => `<li><span>${escapeHtml(line.player_name)}</span><p>${escapeHtml(line.content)}</p></li>`).join("")}</ol>`;
-    details.querySelector(".history-delete")?.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+    const story = { ...room, lines };
+    item.className = "history-item";
+    item.innerHTML = `<div class="history-title"><strong>${escapeHtml(room.title)}</strong><span>${escapeHtml(room.code)} · ${formatDate(room.completed_at || room.created_at)} · ${lines.length}줄</span></div><div class="history-actions"><button class="secondary compact history-read" type="button">크게 보기</button>${room.owner_id === state.user?.id ? '<button class="danger compact history-delete" type="button">삭제</button>' : ""}</div>`;
+    item.querySelector(".history-read").addEventListener("click", () => openReader(story));
+    item.querySelector(".history-delete")?.addEventListener("click", async () => {
       if (!confirm(`'${room.title}'을(를) 삭제할까요?`)) return;
-      const { error } = await supabase.from("rooms").delete().eq("id", room.id).eq("owner_id", state.user.id).eq("status", "completed");
+      const { error } = await deleteHistoryRoom(room.id);
       toast(error ? error.message : "Deleted.");
-      if (!error) openHistory();
+      if (!error) await loadHistory();
     });
-    return details;
+    return item;
   }));
 }
 function leaveRoom() {
+  if (state.room && state.player) saveRecentRoom(state.room, state.player.name);
   if (state.channel) supabase.removeChannel(state.channel);
   Object.assign(state, { room: null, player: null, players: [], lines: [], chatMessages: [], channel: null, lastTurnKey: "" });
   els.gameView.classList.add("hidden");
   renderAuth();
 }
-function storyText() { return `${state.room?.title || "NovelChain"}\n\n${state.lines.map((line) => line.content).join("\n")}\n`; }
+function currentStory() { return state.room ? { ...state.room, lines: state.lines } : null; }
+function storyText(story) { return `${story?.title || "NovelChain"}\n\n${(story?.lines || []).map((line) => line.content).join("\n")}\n`; }
 function downloadTxt() {
-  if (!state.room) return;
-  const blob = new Blob([storyText()], { type: "text/plain;charset=utf-8" });
-  downloadBlob(blob, `${state.room.code}-${slugify(state.room.title)}.txt`);
+  downloadStory(currentStory(), "txt");
 }
 function downloadPdf() {
+  downloadStory(currentStory(), "pdf");
+}
+function downloadStory(story, type) {
+  if (!story) return;
+  if (type === "txt") {
+    const blob = new Blob([storyText(story)], { type: "text/plain;charset=utf-8" });
+    downloadBlob(blob, `${story.code}-${slugify(story.title)}.txt`);
+    return;
+  }
   const PDF = window.jspdf?.jsPDF;
-  if (!state.room || !PDF) return toast("PDF unavailable.");
+  if (!PDF) return toast("PDF unavailable.");
   const doc = new PDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  renderStoryCanvases(pageWidth, pageHeight).forEach((canvas, index) => {
+  renderStoryCanvases(story, pageWidth, pageHeight).forEach((canvas, index) => {
     if (index) doc.addPage();
     doc.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageWidth, pageHeight);
   });
-  doc.save(`${state.room.code}-${slugify(state.room.title)}.pdf`);
+  doc.save(`${story.code}-${slugify(story.title)}.pdf`);
 }
-function renderStoryCanvases(pageWidth, pageHeight) {
+function renderStoryCanvases(story, pageWidth, pageHeight) {
   const scale = 2, margin = 48, contentWidth = (pageWidth - margin * 2) * scale, lineHeight = 24 * scale, pages = [];
   let canvas, ctx, y;
   const newPage = () => {
@@ -364,8 +480,8 @@ function renderStoryCanvases(pageWidth, pageHeight) {
     y += gap;
   };
   newPage();
-  draw(state.room.title, `700 ${24 * scale}px system-ui, sans-serif`, "#181a20", 20 * scale);
-  state.lines.forEach((line, index) => draw(`${index + 1}. ${line.content}`, `400 ${15 * scale}px system-ui, sans-serif`, "#262b34", 10 * scale));
+  draw(story.title, `700 ${24 * scale}px system-ui, sans-serif`, "#181a20", 20 * scale);
+  story.lines.forEach((line, index) => draw(`${index + 1}. ${line.content}`, `400 ${15 * scale}px system-ui, sans-serif`, "#262b34", 10 * scale));
   return pages;
 }
 function downloadBlob(blob, filename) { const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url); }
