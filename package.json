@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "env": "node scripts/generate-env.mjs",
+    "vercel-build": "npm run env",
     "start": "npm run env && node scripts/serve.mjs",
     "check": "node --check app.js && node --check scripts/generate-env.mjs && node --check scripts/serve.mjs"
   }
