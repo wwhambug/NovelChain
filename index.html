@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NovelChain</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./public/env.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Realtime collaborative fiction</p>
+          <h1>NovelChain</h1>
+        </div>
+        <button class="ghost" id="historyButton" type="button">History</button>
+      </section>
+
+      <section class="notice hidden" id="configNotice">
+        Supabase 연결값이 비어 있습니다. <code>.env</code>를 채운 뒤 <code>npm run env</code>를 실행하세요.
+      </section>
+
+      <section class="auth-card panel" id="authView">
+        <div>
+          <h2>계정으로 시작하기</h2>
+          <p class="muted">방과 작성 기록을 계정에 연결해 둡니다.</p>
+        </div>
+        <form id="authForm" class="form-stack">
+          <label>
+            이메일
+            <input id="authEmail" type="email" autocomplete="email" placeholder="writer@example.com" required />
+          </label>
+          <label>
+            비밀번호
+            <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required />
+          </label>
+          <div class="auth-actions">
+            <button class="primary" id="loginButton" type="submit">로그인</button>
+            <button class="secondary" id="signupButton" type="button">회원가입</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="account-bar hidden" id="accountBar">
+        <span id="accountEmail"></span>
+        <button class="ghost compact" id="logoutButton" type="button">로그아웃</button>
+      </section>
+
+      <section class="workspace hidden" id="lobbyView">
+        <div class="panel create-panel">
+          <h2>방 만들기</h2>
+          <form id="createRoomForm" class="form-stack">
+            <label>
+              닉네임
+              <input id="createName" maxlength="24" placeholder="예: 작가A" required />
+            </label>
+            <label>
+              소설 제목
+              <input id="roomTitle" maxlength="80" placeholder="오늘의 이상한 첫 문장" required />
+            </label>
+            <div class="grid-2">
+              <label>
+                사람당 줄 수
+                <input id="maxLines" type="number" min="1" max="99" value="1" required />
+              </label>
+              <label class="toggle">
+                <input id="allowEdits" type="checkbox" />
+                <span>수정 허용</span>
+              </label>
+            </div>
+            <button class="primary" type="submit">새 방 열기</button>
+          </form>
+        </div>
+
+        <div class="panel join-panel">
+          <h2>방 코드로 접속</h2>
+          <form id="joinRoomForm" class="form-stack">
+            <label>
+              닉네임
+              <input id="joinName" maxlength="24" placeholder="예: 문장수집가" required />
+            </label>
+            <label>
+              방 코드
+              <input id="roomCode" maxlength="8" placeholder="A1B2C" required />
+            </label>
+            <button class="secondary" type="submit">참가하기</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="game hidden" id="gameView">
+        <aside class="side">
+          <button class="ghost compact" id="leaveButton" type="button">나가기</button>
+          <div class="room-code">
+            <span>방 코드</span>
+            <strong id="activeRoomCode">-----</strong>
+          </div>
+          <div>
+            <h2 id="activeRoomTitle">제목 없음</h2>
+            <p id="ruleText" class="muted"></p>
+          </div>
+          <div class="players">
+            <h3>참가자</h3>
+            <ul id="playerList"></ul>
+          </div>
+          <form id="hostSettings" class="host-settings hidden">
+            <h3>방장 설정</h3>
+            <label>
+              사람당 줄 수
+              <input id="hostMaxLines" type="number" min="1" max="99" />
+            </label>
+            <label class="toggle">
+              <input id="hostAllowEdits" type="checkbox" />
+              <span>수정 허용</span>
+            </label>
+            <button class="secondary compact" type="submit">저장</button>
+            <button class="danger compact" id="completeButton" type="button">완성 처리</button>
+          </form>
+        </aside>
+
+        <section class="story">
+          <div class="story-head">
+            <div>
+              <p class="eyebrow">Current draft</p>
+              <h2 id="storyHeading">함께 쓰는 중</h2>
+            </div>
+            <div class="export-actions">
+              <button class="ghost compact" id="downloadTxt" type="button">TXT</button>
+              <button class="ghost compact" id="downloadPdf" type="button">PDF</button>
+            </div>
+          </div>
+
+          <ol class="lines" id="storyLines"></ol>
+
+          <form id="lineForm" class="line-form">
+            <textarea id="lineInput" maxlength="240" rows="3" placeholder="다음 한 줄을 이어 쓰세요." required></textarea>
+            <button class="primary" type="submit">한 줄 추가</button>
+          </form>
+          <p id="lineHint" class="muted"></p>
+        </section>
+
+        <section class="chat">
+          <div class="chat-head">
+            <div>
+              <p class="eyebrow">Room chat</p>
+              <h2>채팅</h2>
+            </div>
+          </div>
+          <div class="chat-messages" id="chatMessages"></div>
+          <form id="chatForm" class="chat-form">
+            <input id="chatInput" maxlength="180" placeholder="짧게 이야기하기" autocomplete="off" required />
+            <button class="primary compact" type="submit">전송</button>
+          </form>
+        </section>
+      </section>
+
+      <dialog id="historyDialog">
+        <div class="dialog-head">
+          <h2>History</h2>
+          <button class="icon-button" id="closeHistory" type="button" aria-label="닫기">×</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </dialog>
+
+      <div class="toast hidden" id="toast"></div>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
