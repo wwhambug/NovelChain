@@ -144,6 +144,15 @@ begin
     raise exception 'line edits are disabled';
   end if;
 
+  if tg_op = 'UPDATE' and exists (
+    select 1
+    from public.lines
+    where room_id = old.room_id
+      and position > old.position
+  ) then
+    raise exception 'line cannot be edited after the story has continued';
+  end if;
+
   return new;
 end $$;
 
