@@ -195,6 +195,21 @@ create policy "chat messages are insertable" on public.chat_messages for insert 
   )
 );
 
+create or replace function public.delete_completed_room(target_room_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.rooms
+  where id = target_room_id
+    and owner_id = auth.uid()
+    and status = 'completed';
+end $$;
+
+grant execute on function public.delete_completed_room(uuid) to authenticated;
+
 alter table public.rooms replica identity full;
 alter table public.players replica identity full;
 alter table public.lines replica identity full;
