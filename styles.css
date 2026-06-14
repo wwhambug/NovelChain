@@ -132,8 +132,10 @@ h3 {
 
 .auth-card,
 .account-bar,
+.rejoin-card,
 .workspace,
-.game {
+.game,
+.reader {
   display: grid;
   gap: 16px;
 }
@@ -169,6 +171,18 @@ h3 {
   font-weight: 750;
 }
 
+.rejoin-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 18px 22px;
+}
+
+.rejoin-card h2,
+.rejoin-card p {
+  margin-bottom: 0;
+}
+
 .workspace {
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
   align-items: stretch;
@@ -178,6 +192,7 @@ h3 {
 .side,
 .story,
 .chat,
+.reader-page,
 dialog {
   border: 1px solid rgba(216, 221, 230, 0.9);
   border-radius: 8px;
@@ -451,6 +466,53 @@ label {
   gap: 8px;
 }
 
+.reader {
+  width: min(900px, 100%);
+  margin: 0 auto;
+}
+
+.reader-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reader-page {
+  padding: clamp(22px, 5vw, 58px);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.reader-page h2 {
+  margin-bottom: 28px;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.reader-lines {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  padding-left: 24px;
+}
+
+.reader-lines li {
+  padding-bottom: 18px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.reader-lines span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.reader-lines p {
+  margin: 0;
+  font-size: 1.16rem;
+  line-height: 1.8;
+}
+
 .notice {
   margin-bottom: 16px;
   border: 1px solid #e3c368;
@@ -493,11 +555,35 @@ dialog::backdrop {
   background: #fff;
 }
 
+.history-title,
+.history-actions,
 .history-item summary {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+}
+
+.history-title {
+  align-items: flex-start;
+}
+
+.history-title span {
+  flex: 0 0 auto;
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.history-actions {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.history-actions button {
+  min-width: 92px;
+}
+
+.history-item summary {
   cursor: pointer;
   list-style: none;
 }
@@ -607,6 +693,7 @@ dialog::backdrop {
 
   .workspace,
   .game,
+  .rejoin-card,
   .line-form,
   .chat-form,
   .grid-2,
@@ -650,9 +737,18 @@ dialog::backdrop {
     flex: 1;
   }
 
+  .history-title,
+  .history-actions,
   .history-item summary,
+  .reader-toolbar,
   .story-head {
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .reader-toolbar .export-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 }
 
