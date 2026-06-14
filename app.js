@@ -241,8 +241,11 @@ async function completeRoom() {
 }
 async function updateLine(line, content) {
   if (!state.room.allow_edits || line.player_id !== state.player.id) return;
+  if (state.lines.some((item) => item.position > line.position)) return toast("이야기가 이어진 뒤에는 수정할 수 없습니다.");
   const { error } = await supabase.from("lines").update({ content, updated_at: new Date().toISOString() }).eq("id", line.id);
-  if (error) toast(error.message);
+  if (error) return toast(error.message);
+  await loadRoom();
+  render();
 }
 
 function render() {
@@ -287,7 +290,8 @@ function renderLines() {
   els.storyLines.replaceChildren(...state.lines.map((line) => {
     const li = document.createElement("li");
     li.innerHTML = `<div class="line-meta"><span>${escapeHtml(line.player_name)}</span><time>${formatTime(line.created_at)}</time></div><p>${escapeHtml(line.content)}</p>`;
-    if (state.room.allow_edits && line.player_id === state.player?.id && state.room.status !== "completed") {
+    const storyContinued = state.lines.some((item) => item.position > line.position);
+    if (state.room.allow_edits && !storyContinued && line.player_id === state.player?.id && state.room.status !== "completed") {
       const button = document.createElement("button");
       button.className = "ghost compact";
       button.type = "button";
