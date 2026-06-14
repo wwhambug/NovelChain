@@ -75,6 +75,7 @@ as $$
 declare
   room_record public.rooms%rowtype;
   player_line_count integer;
+  player_count integer;
   last_player_id uuid;
   expected_player_id uuid;
 begin
@@ -89,6 +90,14 @@ begin
   end if;
 
   if tg_op = 'INSERT' then
+    select count(*) into player_count
+    from public.players
+    where room_id = new.room_id;
+
+    if player_count < 2 then
+      raise exception 'at least two players are required';
+    end if;
+
     select count(*) into player_line_count
     from public.lines
     where room_id = new.room_id
@@ -103,6 +112,10 @@ begin
     where room_id = new.room_id
     order by position desc
     limit 1;
+
+    if player_count > 1 and last_player_id is not null and new.player_id = last_player_id then
+      raise exception 'players must take turns';
+    end if;
 
     with ordered_players as (
       select
