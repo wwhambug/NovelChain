@@ -48,6 +48,15 @@
         <button class="ghost compact" id="logoutButton" type="button">로그아웃</button>
       </section>
 
+      <section class="rejoin-card panel hidden" id="rejoinCard">
+        <div>
+          <p class="eyebrow">Recent room</p>
+          <h2 id="rejoinTitle">최근 방</h2>
+          <p class="muted" id="rejoinMeta"></p>
+        </div>
+        <button class="primary" id="rejoinButton" type="button">30분 이내 재접속</button>
+      </section>
+
       <section class="workspace hidden" id="lobbyView">
         <div class="panel create-panel">
           <h2>방 만들기</h2>
@@ -154,6 +163,21 @@
             <button class="primary compact" type="submit">전송</button>
           </form>
         </section>
+      </section>
+
+      <section class="reader hidden" id="readerView">
+        <div class="reader-toolbar">
+          <button class="ghost compact" id="closeReader" type="button">돌아가기</button>
+          <div class="export-actions">
+            <button class="ghost compact" id="readerTxt" type="button">TXT</button>
+            <button class="ghost compact" id="readerPdf" type="button">PDF</button>
+          </div>
+        </div>
+        <article class="reader-page">
+          <p class="eyebrow" id="readerMeta">NovelChain</p>
+          <h2 id="readerTitle">제목 없음</h2>
+          <ol class="reader-lines" id="readerLines"></ol>
+        </article>
       </section>
 
       <dialog id="historyDialog">
