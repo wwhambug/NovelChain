@@ -45,6 +45,7 @@
 
       <section class="account-bar hidden" id="accountBar">
         <span id="accountEmail"></span>
+        <button class="ghost compact" id="myButton" type="button">My</button>
         <button class="ghost compact" id="logoutButton" type="button">로그아웃</button>
       </section>
 
@@ -64,6 +65,10 @@
             <label>
               닉네임
               <input id="createName" maxlength="24" placeholder="예: 작가A" required />
+            </label>
+            <label class="toggle slim-toggle">
+              <input id="createAnonymous" type="checkbox" />
+              <span>익명으로 입장</span>
             </label>
             <label>
               소설 제목
@@ -89,6 +94,10 @@
             <label>
               닉네임
               <input id="joinName" maxlength="24" placeholder="예: 문장수집가" required />
+            </label>
+            <label class="toggle slim-toggle">
+              <input id="joinAnonymous" type="checkbox" />
+              <span>익명으로 입장</span>
             </label>
             <label>
               방 코드
@@ -127,6 +136,13 @@
             <button class="secondary compact" type="submit">저장</button>
             <button class="danger compact" id="completeButton" type="button">완성 처리</button>
           </form>
+          <div class="friends-box">
+            <div class="section-title">
+              <h3>친구 초대</h3>
+              <button class="ghost compact" id="copyInviteButton" type="button">초대 복사</button>
+            </div>
+            <div id="roomFriendList" class="room-friends"></div>
+          </div>
         </aside>
 
         <section class="story">
@@ -186,6 +202,32 @@
           <button class="icon-button" id="closeHistory" type="button" aria-label="닫기">×</button>
         </div>
         <div id="historyList" class="history-list"></div>
+      </dialog>
+
+      <dialog id="myDialog">
+        <div class="dialog-head">
+          <h2>My</h2>
+          <button class="icon-button" id="closeMy" type="button" aria-label="닫기">×</button>
+        </div>
+        <form id="profileForm" class="form-stack">
+          <label>
+            고유 닉네임
+            <input id="profileNickname" maxlength="24" minlength="2" required />
+          </label>
+          <label>
+            익명 랜덤 문자열 길이
+            <input id="anonymousLength" type="number" min="3" max="16" required />
+          </label>
+          <button class="primary" type="submit">프로필 저장</button>
+        </form>
+        <div class="friend-panel">
+          <h3>친구</h3>
+          <form id="friendForm" class="friend-form">
+            <input id="friendNickname" maxlength="24" placeholder="친구 닉네임" required />
+            <button class="secondary compact" type="submit">추가</button>
+          </form>
+          <div id="friendList" class="friend-list"></div>
+        </div>
       </dialog>
 
       <div class="toast hidden" id="toast"></div>
