@@ -74,10 +74,10 @@ language plpgsql
 as $$
 declare
   room_record public.rooms%rowtype;
-  player_line_count integer;
   player_count integer;
   last_player_id uuid;
   expected_player_id uuid;
+  current_streak integer;
 begin
   select * into room_record from public.rooms where id = new.room_id;
 
@@ -98,37 +98,47 @@ begin
       raise exception 'at least two players are required';
     end if;
 
-    select count(*) into player_line_count
-    from public.lines
-    where room_id = new.room_id
-      and player_id = new.player_id;
-
-    if player_line_count >= room_record.max_lines_per_player then
-      raise exception 'player line limit reached';
-    end if;
-
     select player_id into last_player_id
     from public.lines
     where room_id = new.room_id
     order by position desc
     limit 1;
 
-    if player_count > 1 and last_player_id is not null and new.player_id = last_player_id then
-      raise exception 'players must take turns';
+    if last_player_id is not null and new.player_id = last_player_id then
+      with previous_lines as (
+        select player_id
+        from public.lines
+        where room_id = new.room_id
+        order by position desc
+      ),
+      numbered as (
+        select
+          player_id,
+          row_number() over () as rn
+        from previous_lines
+      ),
+      boundary as (
+        select min(rn) as rn
+        from numbered
+        where player_id <> last_player_id
+      )
+      select count(*) into current_streak
+      from numbered
+      where player_id = last_player_id
+        and rn < coalesce((select rn from boundary), 1000000);
+
+      if current_streak >= room_record.max_lines_per_player then
+        raise exception 'turn line limit reached';
+      end if;
+
+      return new;
     end if;
 
     with ordered_players as (
       select
         p.id,
-        row_number() over (order by p.created_at, p.id) as rn,
-        coalesce(line_counts.line_count, 0) as line_count
+        row_number() over (order by p.created_at, p.id) as rn
       from public.players p
-      left join (
-        select player_id, count(*) as line_count
-        from public.lines
-        where room_id = new.room_id
-        group by player_id
-      ) line_counts on line_counts.player_id = p.id
       where p.room_id = new.room_id
     ),
     last_player as (
@@ -137,7 +147,6 @@ begin
     next_player as (
       select id
       from ordered_players
-      where line_count < room_record.max_lines_per_player
       order by
         case
           when last_player_id is null then rn
