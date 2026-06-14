@@ -168,21 +168,26 @@ function subscribeRoom() {
 }
 async function reload() { await loadRoom(); render(); }
 
-function eligiblePlayers() {
-  return state.players.filter((player) => state.lines.filter((line) => line.player_id === player.id).length < state.room.max_lines_per_player);
+function currentStreak() {
+  const last = state.lines.at(-1);
+  if (!last) return 0;
+  let count = 0;
+  for (let i = state.lines.length - 1; i >= 0; i -= 1) {
+    if (state.lines[i].player_id !== last.player_id) break;
+    count += 1;
+  }
+  return count;
 }
 function currentTurn() {
   if (!state.room || state.room.status === "completed") return null;
   if (state.players.length < 2) return null;
-  const eligible = eligiblePlayers();
-  if (!eligible.length) return null;
   const last = state.lines.at(-1);
-  if (!last) return eligible[0];
-  if (eligible.length === 1 && eligible[0].id === last.player_id) return null;
+  if (!last) return state.players[0] || null;
+  if (currentStreak() < state.room.max_lines_per_player) return state.players.find((player) => player.id === last.player_id) || null;
   const start = Math.max(0, state.players.findIndex((player) => player.id === last.player_id) + 1);
   for (let i = 0; i < state.players.length; i += 1) {
     const player = state.players[(start + i) % state.players.length];
-    if (eligible.some((item) => item.id === player.id)) return player;
+    if (player.id !== last.player_id) return player;
   }
   return null;
 }
@@ -197,9 +202,8 @@ async function addLine(event) {
   event.preventDefault();
   if (state.players.length < 2) return toast("2명 이상 들어와야 시작할 수 있습니다.");
   const turn = currentTurn();
-  const ownCount = state.lines.filter((line) => line.player_id === state.player.id).length;
   if (state.room.status === "completed") return toast("This story is complete.");
-  if (ownCount >= state.room.max_lines_per_player) return toast("No lines left.");
+  if (turn?.id === state.player.id && state.lines.at(-1)?.player_id === state.player.id && currentStreak() >= state.room.max_lines_per_player) return toast("이번 턴의 줄 수를 모두 썼습니다.");
   if (turn?.id !== state.player.id) return toast(turn ? `${turn.name}'s turn.` : "No active turn.");
   const content = els.lineInput.value.trim();
   if (!content) return;
@@ -252,23 +256,23 @@ async function updateLine(line, content) {
 }
 
 function render() {
-  const ownCount = state.lines.filter((line) => line.player_id === state.player?.id).length;
-  const remaining = Math.max(state.room.max_lines_per_player - ownCount, 0);
   const turn = currentTurn();
+  const turnStreak = state.lines.at(-1)?.player_id === turn?.id ? currentStreak() : 0;
+  const remaining = Math.max(state.room.max_lines_per_player - turnStreak, 0);
   const canWrite = remaining > 0 && turn?.id === state.player?.id && state.room.status !== "completed";
   els.activeRoomCode.textContent = state.room.code;
   els.activeRoomTitle.textContent = state.room.title;
   els.storyHeading.textContent = state.room.status === "completed" ? "완성된 소설" : "함께 쓰는 중";
-  els.ruleText.textContent = `사람당 ${state.room.max_lines_per_player}줄 · 수정 ${state.room.allow_edits ? "가능" : "불가"}`;
+  els.ruleText.textContent = `턴당 최대 ${state.room.max_lines_per_player}줄 · 전체 길이 무제한 · 수정 ${state.room.allow_edits ? "가능" : "불가"}`;
   els.lineHint.textContent = state.room.status === "completed"
     ? "완성된 소설입니다."
     : state.players.length < 2
       ? "2명 이상 들어오면 첫 문장을 쓸 수 있습니다."
       : canWrite
-        ? `당신의 차례 · 남은 줄 ${remaining}`
+        ? `당신의 차례 · 이번 턴 남은 줄 ${remaining}`
         : turn
-          ? `${turn.name}님의 차례 · 내 남은 줄 ${remaining}`
-          : "다른 사람이 이어 쓸 차례입니다.";
+          ? `${turn.name}님의 차례 · 이번 턴 남은 줄 ${remaining}`
+          : "다음 턴을 기다리는 중입니다.";
   els.hostSettings.classList.toggle("hidden", !isHost());
   els.hostMaxLines.value = state.room.max_lines_per_player;
   els.hostAllowEdits.checked = state.room.allow_edits;
@@ -286,7 +290,7 @@ function renderPlayers(turn) {
     const li = document.createElement("li");
     const count = state.lines.filter((line) => line.player_id === player.id).length;
     li.classList.toggle("current-turn", turn?.id === player.id);
-    li.innerHTML = `<span>${escapeHtml(player.name)}</span><strong>${count}/${state.room.max_lines_per_player}</strong>`;
+    li.innerHTML = `<span>${escapeHtml(player.name)}</span><strong>${count}줄</strong>`;
     return li;
   }));
 }
