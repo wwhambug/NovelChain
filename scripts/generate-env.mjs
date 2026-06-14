@@ -29,8 +29,8 @@ await writeFile(
   outputPath,
   `window.NOVELCHAIN_ENV = ${JSON.stringify(
     {
-      SUPABASE_URL: env.SUPABASE_URL || "",
-      SUPABASE_ANON_KEY: env.SUPABASE_ANON_KEY || "",
+      SUPABASE_URL: process.env.SUPABASE_URL || env.SUPABASE_URL || "",
+      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || "",
     },
     null,
     2,
